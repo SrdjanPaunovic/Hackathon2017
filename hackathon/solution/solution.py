@@ -57,8 +57,8 @@ def gridOff(msg: DataMessage) -> ResultsMessage:
     else:
         return ResultsMessage(data_msg=msg,
                               load_one=True,
-                              load_two=True,
-                              load_three=False,
+                              load_two=False,
+                              load_three=True,
                               power_reference=6.0,
                               pv_mode=PVMode.ON)
 
