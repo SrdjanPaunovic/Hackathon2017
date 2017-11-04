@@ -62,8 +62,6 @@ def gridOff(msg: DataMessage) -> ResultsMessage:
                               power_reference=6.0,
                               pv_mode=PVMode.ON)
 
-
-
 def run(args) -> None:
     prepare_dot_dir()
     config_outs(args, 'solution')
