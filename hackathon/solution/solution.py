@@ -5,6 +5,7 @@ from hackathon.utils.utils import ResultsMessage, DataMessage, PVMode, \
     TYPHOON_DIR, config_outs
 from hackathon.framework.http_server import prepare_dot_dir
 
+charging = False
 
 def worker(msg: DataMessage) -> ResultsMessage:
     """TODO: This function should be implemented by contestants."""
@@ -24,20 +25,32 @@ def worker(msg: DataMessage) -> ResultsMessage:
                           pv_mode=PVMode.ON)
 
 def gridOn(msg: DataMessage) -> ResultsMessage:
-    if msg.bessSOC < 0.8:
-        return ResultsMessage(data_msg=msg,
-                              load_one=True,
-                              load_two=True,
-                              load_three=True,
-                              power_reference=-0.1,
-                              pv_mode=PVMode.ON)
+    global charging
+
+    pwr_reference = 0.0
+
+    if msg.bessSOC < 0.6:
+        charging = True
+    elif msg.bessSOC == 1.0:
+        charging = False
+
+    if charging:
+        if msg.buying_price < msg.selling_price:
+             pwr_reference = - 6.0
+        elif msg.solar_production > 0.0:
+             pwr_reference = -msg.solar_production
+        else:
+             pwr_reference = 0.0
     else:
-        return ResultsMessage(data_msg=msg,
-                              load_one=True,
-                              load_two=True,
-                              load_three=True,
-                              power_reference=0.0,
-                              pv_mode=PVMode.ON)
+        pwr_reference = 6.0
+
+    print(pwr_reference)
+    return ResultsMessage(data_msg=msg,
+                            load_one=True,
+                            load_two=True,
+                            load_three=True,
+                            power_reference = pwr_reference,
+                            pv_mode=PVMode.ON)
 
 def gridOff(msg: DataMessage) -> ResultsMessage:
     if msg.current_load <= msg.solar_production:
@@ -47,7 +60,7 @@ def gridOff(msg: DataMessage) -> ResultsMessage:
                               load_three=True,
                               power_reference=0.0,
                               pv_mode=PVMode.ON)
-    elif msg.current_load <= msg.solar_production + 6:
+    elif msg.current_load <= msg.solar_production + 6.0:
         return ResultsMessage(data_msg=msg,
                               load_one=True,
                               load_two=True,
