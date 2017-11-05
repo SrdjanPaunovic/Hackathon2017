@@ -7,6 +7,9 @@ from hackathon.framework.http_server import prepare_dot_dir
 from scipy.optimize import minimize
 import numpy
 charging = False
+currentIteration = 0
+maxIteration = 8 * 60
+cheapPrice = 100
 
 def batteryUsage(msg: DataMessage) -> float:
 
@@ -27,7 +30,7 @@ def getParams(msg: DataMessage) :
         penaltyCost = 25.0 - 20.0*x[0] - 4.0*x[1] - x[2]
         generatedPrice = (6.0*x[3] + B)*k2
 
-        return loadCost + 15.0*penaltyCost - generatedPrice
+        return loadCost + 7.0*penaltyCost - generatedPrice
     x0_bounds = ( 0, 1)
     x1_bounds = ( 0, 1)
     x2_bounds = ( 0, 1)
@@ -60,6 +63,17 @@ def getParams(msg: DataMessage) :
 def worker(msg: DataMessage) -> ResultsMessage:
     """TODO: This function should be implemented by contestants."""
     # Details about DataMessage and ResultsMessage objects can be found in /utils/utils.py
+    global currentIteration
+    global maxIteration
+    global cheapPrice
+
+    if msg.buying_price < cheapPrice:
+        cheapPrice = msg.buying_price
+
+    if not msg.grid_status:
+        currentIteration = 0
+
+    currentIteration += 1
 
     if msg.grid_status == True:
         return gridOn(msg)
@@ -79,30 +93,27 @@ def gridOn(msg: DataMessage) -> ResultsMessage:
 
     pwr_reference = 0.0
 
-    if msg.bessSOC < 0.6:
-        charging = True
-    elif msg.bessSOC == 1.0:
-        charging = False
-    #
-    # if charging:
-    #     if msg.buying_price < msg.selling_price:
-    #          pwr_reference = - 6.0
-    #     elif msg.solar_production > 0.0:
-    #          pwr_reference = -msg.solar_production
-    #     else:
-    #          pwr_reference = 0.0
-    # else:
-    #     pwr_reference = 6.0
-
     x = getParams(msg)
     k1 = msg.buying_price
     k2 = msg.selling_price
     k = float(k1 == 3.0)* 3.0 #koeficient punjenja
     boolVector = x.x == 1.0
-    if x.x[3] > 0 and msg.bessSOC > 0.6:
-        pwr_reference = float(x.x[3])  # praznjenje
-    elif x.x[3] < 0 and msg.bessSOC < 1:
-        pwr_reference = 4 * float(x.x[3])    # punjenje
+    #if x.x[3] > 0 and msg.bessSOC > 0.6:
+    if currentIteration < maxIteration:
+        if x.x[3] > 0 and msg.buying_price > cheapPrice:
+            pwr_reference = 2.0 * float(x.x[3])  # praznjenje
+        #elif x.x[3] < 0 and msg.bessSOC < 1:
+        elif x.x[3] < 0 and msg.buying_price <= cheapPrice:
+            pwr_reference = 6.0 * float(x.x[3])    # punjenje
+        else:
+            pwr_reference = 0.0
+    else:
+        if x.x[3] > 0 and msg.bessSOC > 0.6:
+            pwr_reference = float(x.x[3])
+        elif x.x[3] > 0 and msg.bessSOC < 0.6:
+            pwr_reference = 0.0
+        elif x.x[3] < 0 and msg.bessSOC < 1:
+            pwr_reference = 6.0 * float(x.x[3])
 
     print(k)
     return ResultsMessage(data_msg=msg,
